@@ -1,0 +1,6 @@
+This is check mutti, a Nagios plugin to aggregate other plugins into one check. It's inspired by
+the venerable and slow check_multi, which was last seen heading into the wrong direction. check_mutti is
+written in portable C and aims to be lean and mean.
+
+Have fun,
+Mark
