@@ -2,5 +2,7 @@ This is check mutti, a Nagios plugin to aggregate other plugins into one check. 
 the venerable and slow check_multi, which was last seen heading into the wrong direction. check_mutti is
 written in portable C and aims to be lean and mean.
 
+See LICENSE for the license terms.
+
 Have fun,
 Mark

@@ -1,3 +1,21 @@
+/*
+    check_mutti - aggregate Nagios checks
+    Copyright (C) 2009  Mark A. Meyer
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <getopt.h>
 #include <sys/types.h>
 #include <signal.h>
@@ -59,13 +77,13 @@ static struct option longopts[] = {
 static void
 version()
 {
-  printf("check_mutti version X, Copyright 2009, Mark Meyer\n");
+  printf("check_mutti version X, Copyright 2009, Mark A. Meyer\n");
 }
 
 static void
 usage()
 {
-  printf("check_mutti version X, Copyright 2009, Mark Meyer\n");
+  printf("check_mutti version X, Copyright 2009, Mark A. Meyer\n");
   printf("Usage here\n");
 }
 
@@ -414,28 +432,102 @@ report(check_t* res)
 {
   check_t* i;
   int checks_crit, checks_warn, checks_unknown, checks_ok;
-  char* perfdata;
+  char tmp[MAX_OUT];
+  char tmp2[MAX_OUT];
+  char* tmpline;
+  char* lastline;
+  char regerr[MAX_LINE];
+  int linelen, outlen, len, ec;
   regex_t splitter;
+  regmatch_t matchptr[3];
+  str_list_t* res_list = 0;
+  str_list_t* perf_list = 0;
+  str_list_t* rest = 0;
+  char* head;
 
-  regcomp(&splitter, "([[:alnum:][:punct:][:space]]*)|?([[:alnum:][:punct:][:space]]*)?", REG_EXTENDED);
-
-  //if(regexec(&splitter, line, 3, matchptr, 0))
-  //return;
-
-  // per definition of the regex, matchptr[n].eo > matchptr[n].so
-
-  /*len = matchptr[1].rm_eo - matchptr[1].rm_so;
-  ntag = malloc((len+1)*sizeof(char));
-  if(ntag == 0)
-    print_error_and_die();
-  strncpy(ntag, line + matchptr[1].rm_so, len);
-  ntag[len] = '\0';*/
+  regcomp(&splitter, "([^\\|]+)\\|?([[:alnum:][:punct:][:space:]]+)?", REG_EXTENDED);
 
   if(res == NULL)
     return;
 
   for(i = res; i != NULL; i = i->next){
-    fprintf(stdout, "%s: %s\n", i->tag, i->out);
+    if(i->val == CHECK_OK){
+      checks_ok++;
+    } else if (i->val == CHECK_WARNING){
+      checks_warn++;
+    } else if (i->val == CHECK_CRITICAL){
+      checks_crit++;
+    } else {
+      checks_unknown++;
+    }
+
+    lastline = i->out;
+    outlen = strlen(i->out);
+    tmpline = strchr(i->out, '\n');
+    while(tmpline != NULL){
+      linelen = (tmpline - lastline);
+      memcpy(tmp, lastline, linelen);
+      lastline = tmpline + 1;
+      tmp[linelen] = '\0';
+
+      memset(matchptr, 0, sizeof(matchptr));
+      ec = regexec(&splitter, tmp, 3, matchptr, 0);
+      if(ec){
+	tmpline = strchr(tmpline + 1, '\n');
+	if(verbosity > 2){
+	  if(regerror(ec, &splitter, regerr, MAX_LINE) < MAX_LINE)
+	    printf("Error in regex: %s\n", regerr);
+	  printf("Regex doesn't match.\n");
+	}
+	continue;
+      }
+
+      len = matchptr[1].rm_eo - matchptr[1].rm_so;
+      if(len > MAX_OUT){
+	tmpline = strchr(tmpline + 1, '\n');
+	continue;
+      }
+      strncpy(tmp2, tmp + matchptr[1].rm_so, len);
+      tmp2[len] = '\0';
+      res_list = strl_cons(res_list, tmp2);
+      printf("added data %s\n", tmp2);
+
+      if(matchptr[2].rm_so > 0){
+	len = matchptr[2].rm_eo - matchptr[2].rm_so;
+	if(len > MAX_OUT){
+	  tmpline = strchr(tmpline + 1, '\n');
+	  continue;
+	}
+	strncpy(tmp2, tmp + matchptr[2].rm_so, len);
+	tmp2[len] = '\0';
+	perf_list = strl_cons(perf_list, tmp2);
+	printf("added perf %s\n", tmp2);
+      }
+
+      tmpline = strchr(tmpline + 1, '\n');
+    }
+  }
+
+  head = strl_head(res_list);
+  rest = strl_rest(res_list);
+
+  while(head != NULL){
+    printf("%s ", head);
+
+    head = strl_head(rest);
+    rest = strl_rest(rest);
+  }
+
+  printf("|");
+
+  head = strl_head(perf_list);
+  rest = strl_rest(perf_list);
+
+  while(head != NULL){
+    printf("%s ", head);
+
+    head = strl_head(rest);
+    rest = strl_rest(rest);
   }
 }
 
