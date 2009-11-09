@@ -193,6 +193,11 @@ run_check(check_t *check, int usecs)
       check->err = emptymsg;
     }
 
+    if(verbosity > 2){
+      printf("tv after select: %i secs %i usecs\n",
+	     tv.tv_sec , tv.tv_usec);
+    }
+
     sz = read(outp[0], iobuf, MAX_OUT);
     while(sz == -1 && errno == EINTR)
       sz = read(outp[0], iobuf, MAX_OUT);
