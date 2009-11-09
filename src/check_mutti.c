@@ -304,7 +304,8 @@ execute_xlines(str_list_t *xlines, int usecs_total, int usecs_check,
     memset(&check, 0, sizeof(check));
 
     if(parse_line(head, &check.tag, &realcmd)){
-      fprintf(stderr, "Malfrmed check: %s\n", head);
+      if(verbosity > 2)
+	fprintf(stderr, "Malfrmed check: %s\n", head);
       if(maxres < 3)
 	maxres = 3;
 
@@ -322,8 +323,8 @@ execute_xlines(str_list_t *xlines, int usecs_total, int usecs_check,
     argv[3] = NULL;
     check.argv = argv;
 
-    if(verbosity > 2);
-    printf("Running check: %s with tag: %s, remaining %i.\n", realcmd, check.tag, remaining);
+    if(verbosity > 2)
+      printf("Running check: %s with tag: %s, remaining %i.\n", realcmd, check.tag, remaining);
 
     run_check(&check, remaining > usecs_check ? usecs_check : remaining);
 
@@ -384,9 +385,7 @@ execute_files(str_list_t *files, int usecs_total, int usecs_check,
       if(maxres < 1)
 	maxres = 1;
 
-      head = strl_head(rest);
-      rest = strl_rest(rest);
-      continue;
+      goto el1;
     }
 
     tmp = fgets(line, MAX_LINE, file);
@@ -397,9 +396,7 @@ execute_files(str_list_t *files, int usecs_total, int usecs_check,
 	perror("check_mutti");
       }
 
-      head = strl_head(rest);
-      rest = strl_rest(rest);
-      continue;
+      goto el1;
     }
     for(;;){
       lines = strl_cons(lines, tmp);
@@ -423,6 +420,7 @@ execute_files(str_list_t *files, int usecs_total, int usecs_check,
 
     fclose(file);
 
+  el1:
     head = strl_head(rest);
     rest = strl_rest(rest);
   }
@@ -431,25 +429,22 @@ execute_files(str_list_t *files, int usecs_total, int usecs_check,
 }
 
 void
-report(check_t* res)
+report(check_t* res, int result)
 {
   check_t* i;
-  int checks_crit, checks_warn, checks_unknown, checks_ok;
+  int checks_crit = 0, checks_warn = 0, checks_unknown =0, checks_ok =0;
   char tmp[MAX_OUT];
   char tmp2[MAX_OUT];
   char* tmpline;
+  char* tmppipe;
   char* lastline;
-  char regerr[MAX_LINE];
-  int linelen, outlen, len, ec;
-  regex_t splitter;
-  regmatch_t matchptr[3];
-  str_list_t* res_list = 0;
+  int linelen, outlen, len;
   str_list_t* perf_list = 0;
   str_list_t* rest = 0;
   char* head;
-
-  regcomp(&splitter, "([^\\|]+)\\|?([[:alnum:][:punct:][:space:]]+)?", REG_EXTENDED);
-
+  char* status;
+  int needscomma =0;
+  
   if(res == NULL)
     return;
 
@@ -466,62 +461,68 @@ report(check_t* res)
 
     lastline = i->out;
     outlen = strlen(i->out);
-    tmpline = strchr(i->out, '\n');
-    while(tmpline != NULL){
+    for(tmpline = strchr(i->out, '\n');
+	tmpline != NULL;
+	tmpline = strchr(tmpline + 1, '\n')){
       linelen = (tmpline - lastline);
       memcpy(tmp, lastline, linelen);
       lastline = tmpline + 1;
       tmp[linelen] = '\0';
 
-      memset(matchptr, 0, sizeof(matchptr));
-      ec = regexec(&splitter, tmp, 3, matchptr, 0);
-      if(ec){
-	tmpline = strchr(tmpline + 1, '\n');
-	if(verbosity > 2){
-	  if(regerror(ec, &splitter, regerr, MAX_LINE) < MAX_LINE)
-	    printf("Error in regex: %s\n", regerr);
-	  printf("Regex doesn't match.\n");
-	}
-	continue;
-      }
+      tmppipe = strchr(tmp, '|');
 
-      len = matchptr[1].rm_eo - matchptr[1].rm_so;
-      if(len > MAX_OUT){
-	tmpline = strchr(tmpline + 1, '\n');
-	continue;
-      }
-      strncpy(tmp2, tmp + matchptr[1].rm_so, len);
+      if(tmppipe != NULL)
+	len = tmppipe - tmp;
+      else
+	len = linelen;
+
+/*
+      strncpy(tmp2, tmp, len);
       tmp2[len] = '\0';
       res_list = strl_cons(res_list, tmp2);
-      printf("added data %s\n", tmp2);
+*/
 
-      if(matchptr[2].rm_so > 0){
-	len = matchptr[2].rm_eo - matchptr[2].rm_so;
-	if(len > MAX_OUT){
-	  tmpline = strchr(tmpline + 1, '\n');
-	  continue;
-	}
-	strncpy(tmp2, tmp + matchptr[2].rm_so, len);
+      if(tmppipe != 0){
+	len = linelen - len - 1;
+	strncpy(tmp2, tmppipe + 1, len);
 	tmp2[len] = '\0';
 	perf_list = strl_cons(perf_list, tmp2);
-	printf("added perf %s\n", tmp2);
       }
-
-      tmpline = strchr(tmpline + 1, '\n');
     }
   }
 
-  head = strl_head(res_list);
-  rest = strl_rest(res_list);
+  if(result == CHECK_OK)
+    status = "OK";
+  else if(result == CHECK_WARNING)
+    status = "WARNING";
+  else if(result == CHECK_CRITICAL)
+    status = "CRITICAL";
+  else
+    status = "UNKNOWN";
 
-  while(head != NULL){
-    printf("%s ", head);
-
-    head = strl_head(rest);
-    rest = strl_rest(rest);
+  printf("check_mutti %s - (", status);
+  if(checks_ok > 0){
+    printf("ok: %i", checks_ok);
+    needscomma = 1;
   }
-
-  printf("|");
+  if(checks_warn > 0){
+    if(needscomma)
+      printf(",");
+    printf("warn: %i", checks_warn);
+    needscomma = 1;
+  }
+  if(checks_crit > 0){
+    if(needscomma)
+      printf(",");
+    printf("crit: %i", checks_crit);
+    needscomma = 1;
+  }
+  if(checks_unknown > 0){
+    if(needscomma)
+      printf(",");
+    printf("uknown: %i", checks_unknown);
+  }
+  printf(") | ");
 
   head = strl_head(perf_list);
   rest = strl_rest(perf_list);
@@ -631,7 +632,7 @@ main(int argc, char **argv)
 
   x = execute_files(files, time_total, time_each, &resx);
 
-  report(resx);
+  report(resx, x);
 
   return x;
 }
