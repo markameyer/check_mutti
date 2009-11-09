@@ -17,16 +17,10 @@
 */
 
 #include "list.h"
+#include "error.h"
 
 #include <string.h>
-
-void
-print_error_and_die()
-{
-  perror("check_mutti");
-  fprintf(stderr, "Error is fatal, bailing out.\n");
-  exit(EXIT_FAILURE);
-}
+#include <stdlib.h>
 
 /*@null@*/ char*
 strl_head(str_list_t *l)

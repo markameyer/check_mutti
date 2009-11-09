@@ -29,7 +29,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <regex.h>
+#include <stdio.h>
+#include <errno.h>
 
+#include "error.h"
 #include "list.h"
 
 #define MAX_ARGS 125
@@ -149,7 +152,7 @@ run_check(check_t *check, int usecs)
   FD_ZERO(&fds);
   FD_SET(sigchld_pipe[0], &fds);
 
-  // take time before fork
+  /* take time before fork */
 
   gettimeofday(&tv_check, 0);
 

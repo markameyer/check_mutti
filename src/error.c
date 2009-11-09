@@ -16,11 +16,16 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _error_h_
-#define _error_h_
+#include "error.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
 
 void
-print_error_and_die();
-
-
-#endif /* _error_h_ */
+print_error_and_die()
+{
+  perror("check_mutti");
+  fprintf(stderr, "Error is fatal, bailing out.\n");
+  exit(3);
+}
