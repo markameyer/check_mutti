@@ -1,0 +1,1 @@
+Main check_mutti : src/check_mutti.c src/error.c src/list.c ;
