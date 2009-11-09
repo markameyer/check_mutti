@@ -598,6 +598,9 @@ main(int argc, char **argv)
     case 'r':
       break;
     case 's':
+      tmp_int = putenv(optarg);
+      if(tmp_int)
+	print_error_and_die();
       break;
     case 'x':
       xlines = strl_cons(xlines, optarg);
@@ -623,7 +626,7 @@ main(int argc, char **argv)
       break;
     default:
       usage();
-      exit(EXIT_FAILURE);
+      exit(CHECK_UNKNOWN);
     }
 
   regcomp(&line_re, "[[:space:]]*command[[:space:]]*\\[[[:space:]]*([^[:space:]]+)[[:space:]]*\\][[:space:]]*=[[:space:]]*(.+)", REG_EXTENDED);
