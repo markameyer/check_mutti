@@ -329,7 +329,7 @@ execute_xlines(str_list_t *xlines, int usecs_total, int usecs_check,
     run_check(&check, remaining > usecs_check ? usecs_check : remaining);
 
     if(verbosity > 2){
-      printf("Status: %i\n", check.val);
+      printf("Status: %i, out: %s\n", check.val, check.out);
     }
 
     if(check.val > maxres)
