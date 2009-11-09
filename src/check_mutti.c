@@ -95,6 +95,7 @@ int sigchld_pipe[2]; /* magic pipe */
 void sigchld_sigh(int n)
 {
   write(sigchld_pipe[1], "c", 1);
+  
 }
 
 static void
@@ -106,11 +107,6 @@ setup_sigchld()
 
   if(pipe(sigchld_pipe))
     print_error_and_die();
-
-  fcntl(sigchld_pipe[0], F_SETFL,
-	fcntl(sigchld_pipe[0], F_GETFL) | O_NONBLOCK);
-  fcntl(sigchld_pipe[1], F_SETFL,
-	fcntl(sigchld_pipe[1], F_GETFL) | O_NONBLOCK);
 
   memset(&act, 0, sizeof(act));
   act.sa_handler = sigchld_sigh;
