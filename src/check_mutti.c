@@ -149,6 +149,11 @@ run_check(check_t *check, int usecs)
   tv.tv_sec = usecs / 1000;
   tv.tv_usec = usecs % 1000;
 
+  if(verbosity > 2){
+    printf("Waiting for child: %i secs %i usecs\n",
+	   tv.tv_sec , tv.tv_usec);
+  }
+
   FD_ZERO(&fds);
   FD_SET(sigchld_pipe[0], &fds);
 
