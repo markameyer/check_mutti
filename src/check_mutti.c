@@ -94,7 +94,7 @@ int sigchld_pipe[2]; /* magic pipe */
 
 void sigchld_sigh(int n)
 {
-  write(sigchld_pipe[1], "c", 1);
+  printf("signal handler called %i\n", write(sigchld_pipe[1], "t", 1));
 }
 
 static void
@@ -112,7 +112,7 @@ setup_sigchld()
   fcntl(sigchld_pipe[1], F_SETFL,
 	fcntl(sigchld_pipe[1], F_GETFL) | O_NONBLOCK);
 
-  memset(&act, 0, sizeof(act));
+  memset(&act, 0, sizeof(struct sigaction));
   act.sa_handler = sigchld_sigh;
 
   sigaction(SIGCHLD, &act, NULL);
@@ -124,7 +124,7 @@ run_check(check_t *check, int usecs)
   int outp[2];
   int errp[2];
   int res = -1;
-  char buf[1];
+  char buf[16];
   char iobuf[MAX_OUT + 1];
   char *outbuf = NULL;
   fd_set fds;
@@ -133,7 +133,7 @@ run_check(check_t *check, int usecs)
   static char *intmsg = "Check timed out.";
   static char *emptymsg = "";
   int sz = 0;
-
+   
   if(pipe(outp))
     print_error_and_die();
     fcntl(outp[0], F_SETFL, fcntl(outp[0], F_GETFL) | O_NONBLOCK);
@@ -144,8 +144,6 @@ run_check(check_t *check, int usecs)
     fcntl(errp[0], F_SETFL, fcntl(errp[0], F_GETFL) | O_NONBLOCK);
     fcntl(errp[1], F_SETFL, fcntl(errp[1], F_GETFL) | O_NONBLOCK);
 
-  setup_sigchld();
-
   tv.tv_sec = usecs / 1000;
   tv.tv_usec = usecs % 1000;
 
@@ -154,6 +152,8 @@ run_check(check_t *check, int usecs)
 	   tv.tv_sec , tv.tv_usec);
   }
 
+  setup_sigchld();
+  
   FD_ZERO(&fds);
   FD_SET(sigchld_pipe[0], &fds);
 
@@ -180,15 +180,17 @@ run_check(check_t *check, int usecs)
     close(outp[1]);
     close(errp[1]);
 
-    if(select(sigchld_pipe[0], &fds, NULL, NULL, &tv) != 0){
-
-      read(sigchld_pipe[0],buf,sizeof(buf));
-      waitpid(res, &status, WNOHANG);
-      
-      check->val = status;
+    while((status = select(sigchld_pipe[0] + 1, &fds, NULL, NULL, &tv)) < 0);
+    if(status > 0) {
+      // child terminated
+       
+      read(sigchld_pipe[0] + 1,buf,sizeof(buf));
+      waitpid(res, &check->val, WNOHANG);
     } else {
+      // time limit expired
+      if(verbosity > 2) printf("Time limit expired.\n");
       kill(res, SIGKILL);
-      check->val = 23;
+      check->val = 86;
       check->out = intmsg;
       check->err = emptymsg;
     }
@@ -228,6 +230,9 @@ run_check(check_t *check, int usecs)
     } else {
       check->err = emptymsg;
     }
+     
+    close(outp[0]);
+    close(errp[0]);
 
   } else {
     close(outp[0]);
@@ -238,6 +243,9 @@ run_check(check_t *check, int usecs)
     print_error_and_die();
   }
 
+  close(sigchld_pipe[0]);
+  close(sigchld_pipe[1]);
+   
   gettimeofday(&tv_end, 0);
 
   check->elapsed = (tv_end.tv_sec - tv_check.tv_sec) * 1000;
@@ -638,7 +646,8 @@ main(int argc, char **argv)
     default:
       usage();
       exit(CHECK_UNKNOWN);
-    }
+
+  }
 
   regcomp(&line_re, "[[:space:]]*command[[:space:]]*\\[[[:space:]]*([^[:space:]]+)[[:space:]]*\\][[:space:]]*=[[:space:]]*(.+)", REG_EXTENDED);
 
